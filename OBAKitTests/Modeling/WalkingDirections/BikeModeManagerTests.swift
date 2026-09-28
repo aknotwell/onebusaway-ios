@@ -25,7 +25,7 @@ final class BikeModeManagerTests: OBATestCase {
             }
         }
 
-        func fetchLatestBikeSpeed() async -> Double? {
+        func fetchAverageBikeSpeed() async -> Double? {
             sampleSpeed
         }
     }
@@ -75,7 +75,7 @@ final class BikeModeManagerTests: OBATestCase {
         store.bikeSpeedSource = .healthKit
         store.bikeSpeedMetersPerSecond = 4.2
 
-        // 30 m/s sits well outside BikeSpeed.validRange (1.0...20.0).
+        // 30 m/s sits well outside BikeSpeed.validRange (1.5...20.0).
         let manager = BikeModeManager(
             userDataStore: store,
             healthKit: FakeProvider(sampleSpeed: 30.0)
@@ -87,6 +87,37 @@ final class BikeModeManagerTests: OBATestCase {
         #expect(self.store.bikeSpeedSource == .manual)
         // Stored speed unchanged — the out-of-range sample must not leak in.
         expectClose(self.store.bikeSpeedMetersPerSecond, 4.2)
+    }
+
+    @Test func `Average no faster than walking is rejected`() async {
+        store.bikeSpeedSource = .healthKit
+        store.bikeSpeedMetersPerSecond = 4.2
+
+        let manager = BikeModeManager(
+            userDataStore: store,
+            healthKit: FakeProvider(sampleSpeed: 1.4)
+        )
+
+        let result = await manager.requestHealthKitAuthorizationAndSync()
+
+        #expect(result == false)
+        #expect(self.store.bikeSpeedSource == .manual)
+        expectClose(self.store.bikeSpeedMetersPerSecond, 4.2)
+    }
+
+    @Test func `Average at minimum bike speed is accepted`() async {
+        store.bikeSpeedSource = .manual
+
+        let manager = BikeModeManager(
+            userDataStore: store,
+            healthKit: FakeProvider(sampleSpeed: BikeSpeed.validRange.lowerBound)
+        )
+
+        let result = await manager.requestHealthKitAuthorizationAndSync()
+
+        #expect(result == true)
+        #expect(self.store.bikeSpeedSource == .healthKit)
+        expectClose(self.store.bikeSpeedMetersPerSecond, 1.5)
     }
 
     @Test func `Request and sync when authorization throws forces manual`() async {

@@ -33,7 +33,7 @@ final class SettingsBikeModeTests: OBATestCase {
             requestAuthorizationCount += 1
         }
 
-        func fetchLatestBikeSpeed() async -> Double? {
+        func fetchAverageBikeSpeed() async -> Double? {
             sampleSpeed
         }
     }

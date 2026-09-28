@@ -25,13 +25,13 @@ final class BikeModeManager {
         self.healthKit = healthKit
     }
 
-    /// Requests HealthKit authorization and attempts to sync the latest cycling speed.
+    /// Requests HealthKit authorization and attempts to sync the average cycling speed.
     ///
     /// Apple's HealthKit privacy model does not surface read-permission denials: the
     /// authorization request succeeds even when the user taps "Don't Allow", and a
     /// subsequent query just returns no samples. To avoid leaving the source stuck on
     /// HealthKit for a denying user, success here is defined as "actually retrieved a usable
-    /// sample". A user who genuinely granted access but has no recent cycling-speed samples
+    /// average". A user who genuinely granted access but has no recent cycling-speed samples
     /// (e.g. no Apple Watch) is also routed to `.manual` — that's intentional.
     @discardableResult
     func requestHealthKitAuthorizationAndSync() async -> Bool {
@@ -48,7 +48,7 @@ final class BikeModeManager {
             return false
         }
 
-        let didSync = await syncLatestBikeSpeed()
+        let didSync = await syncAverageBikeSpeed()
         if !didSync {
             userDataStore.bikeSpeedSource = .manual
         }
@@ -56,20 +56,20 @@ final class BikeModeManager {
     }
 
     /// Passive refresh used at launch when the user already opted into HealthKit previously.
-    /// Updates `bikeSpeedMetersPerSecond` if a fresh sample is available, but never flips
+    /// Updates `bikeSpeedMetersPerSecond` if a recent average is available, but never flips
     /// `bikeSpeedSource` to `.manual` — an idle user keeps their previously-synced value and
     /// their stated intent. Only the active sync path in Settings can downgrade the source.
     func refreshFromHealthKitIfPossible() async {
         guard healthKit.isAvailable else { return }
-        await syncLatestBikeSpeed()
+        await syncAverageBikeSpeed()
     }
 
-    /// Fetches the latest cycling-speed sample and writes it to the store if it's in `BikeSpeed.validRange`.
+    /// Fetches the average cycling speed and writes it to the store if it's in `BikeSpeed.validRange`.
     /// Returns `true` on a successful write; otherwise leaves the stored speed and source untouched
     /// and returns `false`. Callers decide how to react to a `false` result.
     @discardableResult
-    private func syncLatestBikeSpeed() async -> Bool {
-        guard let mps = await healthKit.fetchLatestBikeSpeed(),
+    private func syncAverageBikeSpeed() async -> Bool {
+        guard let mps = await healthKit.fetchAverageBikeSpeed(),
               BikeSpeed.validRange.contains(mps)
         else {
             return false
